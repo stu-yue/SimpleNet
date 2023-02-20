@@ -1,0 +1,5 @@
+client/*.o
+server/*.o
+common/*.o
+client/lab5-1_client
+server/lab5-1_server
