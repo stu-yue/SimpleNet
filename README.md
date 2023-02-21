@@ -8,9 +8,19 @@
 
 执行"make server"将只编译服务器.
 
-执行"./lab5-1_client"运行客户端.
+执行"./client/lab5-1_client"运行客户端.
 
-执行"./lab5-1_server"运行服务器.
+执行"./server/lab5-1_server"运行服务器.
+
+执行"make simple"将只编译简单版本的客户服务器.
+
+执行"make stress"将只编译压力测试版本的客户服务器.
+
+执行"./client/simple_client"运行简单版本的客户端.
+
+执行"./server/simple_server"运行简单版本的服务器.
+
+压力测试版本的客户端和服务器运行方式相同, 只需将simple替换为stress即可.
 
 client目录:
 

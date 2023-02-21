@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <assert.h>
+#include <string.h>
 #include "stcp_server.h"
 #include "../common/constants.h"
 
@@ -98,9 +99,18 @@ int stcp_server_sock(unsigned int server_port)
 	tcb->server_nodeID = -1;
 	tcb->client_nodeID = -1;
 	tcb->state = CLOSED;
-	tcb->recvBuf = NULL;
+	// 为接收缓冲区动态分配
+	char* recvBuf;
+	recvBuf = (char*) malloc(sizeof(char) * RECEIVE_BUF_SIZE);
+	assert(recvBuf != NULL);
+	tcb->recvBuf = recvBuf;
 	tcb->usedBufLen = 0;
-	tcb->bufMutex = NULL;
+	// 为接收缓冲区创建互斥量
+	pthread_mutex_t* sendBuf_mutex;
+	sendBuf_mutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+	assert(sendBuf_mutex != NULL);
+	pthread_mutex_init(sendBuf_mutex, NULL);
+	tcb->bufMutex = sendBuf_mutex;
 	pthread_mutex_unlock(&tcbTable_mutex);
 
 	return sockfd;
@@ -150,8 +160,44 @@ int stcp_server_accept(int sockfd)
 //
 // 这个函数接收来自STCP客户端的数据. 你不需要在本实验中实现它.
 //
-int stcp_server_recv(int sockfd, void* buf, unsigned int length) {
-	return 1;
+int stcp_server_recv(int sockfd, void* buf, unsigned int length) 
+{
+	// 通过sockfd获得tcb
+	server_tcb_t* serverTcb = getTcb(sockfd);
+  	if (!serverTcb) 
+    	return -1;
+
+	unsigned int len = length;
+	
+	switch (serverTcb->state) {
+		case CLOSED:
+			return -1;
+		case LISTENING:
+			return -1;
+		case CONNECTED:
+			// printf("len: %d\n", length);
+			while (1) {
+				pthread_mutex_lock(serverTcb->bufMutex);
+				// printf("len: %d\tlength: %d\tusedLen: %d\n", len, length, serverTcb->usedBufLen);
+				if (length <= serverTcb->usedBufLen) {
+					memcpy(buf, serverTcb->recvBuf, length);
+					serverTcb->usedBufLen -= length;
+					len += length;
+					memcpy(serverTcb->recvBuf, serverTcb->recvBuf + length, serverTcb->usedBufLen);
+					//printf("buf: %s\tuseLen: %d\n", serverTcb->recvBuf, serverTcb->usedBufLen);
+					pthread_mutex_unlock(serverTcb->bufMutex);
+					// printf("\n\nlen: %d\tlength: %d\tusedLen: %d\n\n", len, length, serverTcb->usedBufLen);
+					// if (length > 4) assert(0);
+					return 1;
+				}
+				pthread_mutex_unlock(serverTcb->bufMutex);
+				select(0, 0, 0, 0, &(struct timeval){.tv_sec = RECVBUF_POLLING_INTERVAL});
+			}
+		case CLOSEWAIT:
+			return -1;
+		default:
+			return -1;
+	}
 }
 
 // 关闭STCP服务器
@@ -169,6 +215,7 @@ int stcp_server_close(int sockfd)
 	
   	switch (serverTcb->state) {
     	case CLOSED:
+			free(serverTcb->recvBuf);
 			free(serverTcb->bufMutex);
       		free(tcbTable[sockfd]);
       		tcbTable[sockfd] = NULL;
@@ -219,13 +266,15 @@ void *seghandler(void* arg) {
 					// 状态转换
 					serverTcb->state = CONNECTED;
 					serverTcb->client_portNum = segBuf.header.src_port;
+					// 用接收到的 SYN 段中的序号来设置 exepct_seqNum
+					serverTcb->expect_seqNum = segBuf.header.seq_num;
 					printf("SERVER: CONNECTED (RECEIVED SYN)\n");
 					seg_t synack;
 					synack.header.type = SYNACK;
 					synack.header.src_port = serverTcb->server_portNum;
 					synack.header.dest_port = serverTcb->client_portNum;
 					synack.header.seq_num = 0;
-					synack.header.ack_num = segBuf.header.seq_num + 1;
+					synack.header.ack_num = serverTcb->expect_seqNum;
 					synack.header.length = 0;
 					sip_sendseg(sip_conn, &synack);
 				}
@@ -240,9 +289,33 @@ void *seghandler(void* arg) {
 					synack.header.src_port = serverTcb->server_portNum;
 					synack.header.dest_port = serverTcb->client_portNum;
 					synack.header.seq_num = 0;
-					synack.header.ack_num = segBuf.header.seq_num + 1;
+					synack.header.ack_num = serverTcb->expect_seqNum;
 					synack.header.length = 0;
 					sip_sendseg(sip_conn, &synack);
+				} else if (segBuf.header.type == DATA && segBuf.header.src_port == serverTcb->client_portNum) {
+					printf("SERVER: RECEIVED DATA [SEQ: %3d | EXP: %3d] ", segBuf.header.seq_num, serverTcb->expect_seqNum);
+					if (segBuf.header.seq_num == serverTcb->expect_seqNum) {
+						pthread_mutex_lock(serverTcb->bufMutex);
+						if (serverTcb->usedBufLen + segBuf.header.length <= RECEIVE_BUF_SIZE) {
+							memcpy(serverTcb->recvBuf + serverTcb->usedBufLen, segBuf.data, segBuf.header.length);
+							serverTcb->usedBufLen += segBuf.header.length;
+							serverTcb->expect_seqNum += segBuf.header.length;
+							printf("[LEN: %3d | USED: %3d]\n", segBuf.header.length, serverTcb->usedBufLen);
+						}
+						else 
+							printf("[BUF IS FULL -> DISCARD]\n");
+						pthread_mutex_unlock(serverTcb->bufMutex);
+					} else {
+						printf("[SEQ != EXP -> DISCARD]\n");
+					}
+					seg_t dataack;
+					dataack.header.type = DATAACK;
+					dataack.header.src_port = serverTcb->server_portNum;
+					dataack.header.dest_port = serverTcb->client_portNum;
+					dataack.header.seq_num = 0;
+					dataack.header.ack_num = serverTcb->expect_seqNum;
+					dataack.header.length = 0;
+					sip_sendseg(sip_conn, &dataack);
 				} else if (segBuf.header.type == FIN && segBuf.header.src_port == serverTcb->client_portNum) {
 					// 状态更新
 					serverTcb->state = CLOSEWAIT;
@@ -252,12 +325,13 @@ void *seghandler(void* arg) {
 					finack.header.src_port = serverTcb->server_portNum;
 					finack.header.dest_port = serverTcb->client_portNum;
 					finack.header.seq_num = 0;
-					finack.header.ack_num = segBuf.header.seq_num + 1;
+					finack.header.ack_num = serverTcb->expect_seqNum;
 					finack.header.length = 0;
 					sip_sendseg(sip_conn, &finack);
+					
 					// 启动定时器，CLOSEWAIT_TIMEOUT后关闭
 					pthread_t timer;
-					pthread_create(&timer, NULL, timerhandler, (void*)serverTcb);
+					pthread_create(&timer, NULL, closewait_timer, (void*)serverTcb);
 				}
 				break;
 			case CLOSEWAIT:
@@ -268,7 +342,7 @@ void *seghandler(void* arg) {
 					finack.header.src_port = serverTcb->server_portNum;
 					finack.header.dest_port = serverTcb->client_portNum;
 					finack.header.seq_num = 0;
-					finack.header.ack_num = segBuf.header.seq_num + 1;
+					finack.header.ack_num = serverTcb->expect_seqNum;
 					finack.header.length = 0;
 					sip_sendseg(sip_conn, &finack);
 				}
@@ -282,7 +356,7 @@ void *seghandler(void* arg) {
 
 
 // CLOSEWAIT定时器函数
-void *timerhandler(void* arg) 
+void *closewait_timer(void* arg) 
 {
 	server_tcb_t* serverTcb = (server_tcb_t*) arg;
 	struct timeval initTime, currentTime;

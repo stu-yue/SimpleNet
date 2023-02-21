@@ -129,4 +129,60 @@ int stcp_client_close(int sockfd);
  */
 void *seghandler(void* arg);
 
+
+/**
+ * @brief 	
+ * @details 如果发送缓冲区非空, 它应一直运行.
+ * 			如果(当前时间 - 第一个已发送但未被确认段的发送时间) > DATA_TIMEOUT, 就发生一次超时事件.
+ * 			当超时事件发生时, 重新发送所有已发送但未被确认段. 当发送缓冲区为空时, 这个线程将终止.
+ * 
+ * @param clienttcb 
+ * @return void* 
+ */
+void* sendBuf_timer(void* clienttcb);
+
+
+// 
+
+/**
+ * @brief 向缓冲区添加数据段
+ * 
+ * @param clientTcb 
+ * @param newSegBuf 
+ */
+void sendBuf_addSeg(client_tcb_t* clientTcb, segBuf_t* newSegBuf);
+
+
+/**
+ * @brief 超时重发
+ * 
+ * @param clientTcb 
+ */
+void sendBuf_timeout(client_tcb_t* clientTcb);
+
+
+/**
+ * @brief 从第一个未被发送的段开始发送，直到已发送但未被确认的段数量到达 GBN_WINDOW 或是缓冲区未发送段全部发送为止
+ * 
+ * @param clientTcb 
+ */
+void sendBuf_send(client_tcb_t* clientTcb);
+
+
+/**
+ * @brief 接收到一个有效的 DATAACK 段，将被确认的段从发送缓冲区中删除并释放
+ * 
+ * @param clientTcb 
+ * @param ack_seqnum 
+ */
+void sendBuf_recvAck(client_tcb_t* clientTcb, unsigned int ack_seqnum);
+
+
+/**
+ * @brief 当客户端TCB在stcp_client_disconnect()中转换到CLOSED状态时，发送缓冲区应被清空
+ * 
+ * @param clientTcb 
+ */
+void sendBuf_clear(client_tcb_t* clientTcb);
+
 #endif

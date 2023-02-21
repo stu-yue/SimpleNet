@@ -28,7 +28,7 @@ typedef struct stcp_hdr {
 	unsigned short int length;    //段数据长度
 	unsigned short int  type;     //段类型
 	unsigned short int  rcv_win;  //本实验未使用
-	unsigned short int checksum;  //这个段的校验和,本实验未使用
+	unsigned short int checksum;  //这个段的校验和
 } stcp_hdr_t;
 
 
@@ -76,5 +76,25 @@ int sip_recvseg(int connection, seg_t* segPtr);
  */
 int seglost(seg_t* segPtr); 
 
+
+/**
+ * @brief 	这个函数计算指定段的校验和.
+ * @details	校验和计算覆盖段首部和段数据. 首先将段首部中的校验和字段清零, 
+ * 			如果数据长度为奇数, 添加一个全零的字节来计算校验和.
+ * 			校验和计算使用1的补码.
+ * 
+ * @param segment 
+ * @return unsigned short 
+ */
+unsigned short checksum(seg_t* segment);
+
+
+/**
+ * @brief 	这个函数检查段中的校验和, 正确时返回1, 错误时返回-1.
+ * 
+ * @param segment 
+ * @return int 
+ */
+int checkchecksum(seg_t* segment);
 
 #endif

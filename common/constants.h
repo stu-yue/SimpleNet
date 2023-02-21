@@ -1,6 +1,9 @@
-//文件名: common/constants.h
+/**
+ * @file    common/constants.h
+ * @brief   这个文件包含STCP协议使用的常量
+ * @date    2023-02-21
+ */
 
-//描述: 这个文件包含STCP协议使用的常量
 
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
@@ -24,6 +27,17 @@
 #define FIN_MAX_RETRY 5
 //服务器CLOSEWAIT超时值, 单位为秒
 #define CLOSEWAIT_TIMEOUT 1
+//sendBuf_timer线程的轮询间隔, 单位为纳秒
+#define SENDBUF_POLLING_INTERVAL 100000000
+//STCP客户端在stcp_server_recv()函数中使用这个时间间隔来轮询接收缓冲区, 以检查是否请求的数据已全部到达, 单位为秒. 
+#define RECVBUF_POLLING_INTERVAL 1
 //stcp_server_accept()函数使用这个时间间隔来忙等待TCB状态转换, 单位为纳秒
 #define ACCEPT_POLLING_INTERVAL 100000000
+//接收缓冲区大小
+#define RECEIVE_BUF_SIZE 1000000
+//数据段超时值, 单位为纳秒
+#define DATA_TIMEOUT 100000000
+//GBN窗口大小
+#define GBN_WINDOW 10
+
 #endif

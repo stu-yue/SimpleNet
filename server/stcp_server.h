@@ -108,6 +108,6 @@ int stcp_server_close(int sockfd);
 void* seghandler(void* arg);
 
 
-void *timerhandler(void* arg);
+void *closewait_timer(void* arg);
 
 #endif
