@@ -1,5 +1,0 @@
-client/*.o
-server/*.o
-common/*.o
-client/*_client
-server/*_server
