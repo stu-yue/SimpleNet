@@ -1,0 +1,13 @@
+client/*.o
+server/*.o
+common/*.o
+client/*_client
+server/*_server
+
+topology/*.o
+son/*.o
+sip/*.o
+son/son
+sip/sip 
+
+.vscode/
