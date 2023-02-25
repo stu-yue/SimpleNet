@@ -15,7 +15,7 @@
 
 typedef struct linkedge {
     int to, cost, next;
-} link_edge_t;
+} topo_edge_t;
 
 /**
  * @brief   这个函数返回指定主机的节点ID.

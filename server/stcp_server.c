@@ -14,8 +14,9 @@
 #include <assert.h>
 #include <string.h>
 #include "stcp_server.h"
+#include "../common/seg.h"
 #include "../common/constants.h"
-
+#include "../topology/topology.h"
 
 
 server_tcb_t* tcbTable[MAX_TRANSPORT_CONNECTIONS];	// server的TCB表
@@ -96,7 +97,7 @@ int stcp_server_sock(unsigned int server_port)
 
 	// 初始化tcb
 	pthread_mutex_lock(&tcbTable_mutex);
-	tcb->server_nodeID = -1;
+	tcb->server_nodeID = topology_getMyNodeID();
 	tcb->client_nodeID = -1;
 	tcb->state = CLOSED;
 	// 为接收缓冲区动态分配
@@ -240,10 +241,11 @@ int stcp_server_close(int sockfd)
 
 void *seghandler(void* arg) {
 	seg_t segBuf;
+	int src_nodeID;
 	while (1) {
 		// 客户端连接关闭
 		int n;
-		if ((n = sip_recvseg(sip_conn, &segBuf)) < 0) {
+		if ((n = sip_recvseg(sip_conn, &src_nodeID, &segBuf)) < 0) {
 			close(sip_conn);
 			pthread_exit(NULL);
 		}
@@ -266,6 +268,7 @@ void *seghandler(void* arg) {
 					// 状态转换
 					serverTcb->state = CONNECTED;
 					serverTcb->client_portNum = segBuf.header.src_port;
+					serverTcb->client_nodeID = src_nodeID;
 					// 用接收到的 SYN 段中的序号来设置 exepct_seqNum
 					serverTcb->expect_seqNum = segBuf.header.seq_num;
 					printf("SERVER: CONNECTED (RECEIVED SYN)\n");
@@ -276,13 +279,15 @@ void *seghandler(void* arg) {
 					synack.header.seq_num = 0;
 					synack.header.ack_num = serverTcb->expect_seqNum;
 					synack.header.length = 0;
-					sip_sendseg(sip_conn, &synack);
+					sip_sendseg(sip_conn, serverTcb->client_nodeID, &synack);
 				}
 				else
 					printf("SERVER: IN LISTENING, NO SYN SEG RECEIVED\n");
 				break;
 			case CONNECTED:
-				if (segBuf.header.type == SYN && segBuf.header.src_port == serverTcb->client_portNum) {
+				if (segBuf.header.type == SYN 
+						&& segBuf.header.src_port == serverTcb->client_portNum
+						&& serverTcb->client_nodeID == src_nodeID) {
 					printf("SERVER: REVEIVED SYN (HAS CONNECTED)\n");
 					seg_t synack;
 					synack.header.type = SYNACK;
@@ -291,8 +296,10 @@ void *seghandler(void* arg) {
 					synack.header.seq_num = 0;
 					synack.header.ack_num = serverTcb->expect_seqNum;
 					synack.header.length = 0;
-					sip_sendseg(sip_conn, &synack);
-				} else if (segBuf.header.type == DATA && segBuf.header.src_port == serverTcb->client_portNum) {
+					sip_sendseg(sip_conn, serverTcb->client_nodeID, &synack);
+				} else if (segBuf.header.type == DATA 
+						&& segBuf.header.src_port == serverTcb->client_portNum
+						&& serverTcb->client_nodeID == src_nodeID) {
 					printf("SERVER: RECEIVED DATA [SEQ: %3d | EXP: %3d] ", segBuf.header.seq_num, serverTcb->expect_seqNum);
 					if (segBuf.header.seq_num == serverTcb->expect_seqNum) {
 						pthread_mutex_lock(serverTcb->bufMutex);
@@ -315,8 +322,10 @@ void *seghandler(void* arg) {
 					dataack.header.seq_num = 0;
 					dataack.header.ack_num = serverTcb->expect_seqNum;
 					dataack.header.length = 0;
-					sip_sendseg(sip_conn, &dataack);
-				} else if (segBuf.header.type == FIN && segBuf.header.src_port == serverTcb->client_portNum) {
+					sip_sendseg(sip_conn, serverTcb->client_nodeID, &dataack);
+				} else if (segBuf.header.type == FIN 
+						&& segBuf.header.src_port == serverTcb->client_portNum
+						&& serverTcb->client_nodeID == src_nodeID) {
 					// 状态更新
 					serverTcb->state = CLOSEWAIT;
 					printf("SERVER: CLOSEWAIT (RECEIVED FIN)\n");
@@ -327,7 +336,7 @@ void *seghandler(void* arg) {
 					finack.header.seq_num = 0;
 					finack.header.ack_num = serverTcb->expect_seqNum;
 					finack.header.length = 0;
-					sip_sendseg(sip_conn, &finack);
+					sip_sendseg(sip_conn, serverTcb->client_nodeID, &finack);
 					
 					// 启动定时器，CLOSEWAIT_TIMEOUT后关闭
 					pthread_t timer;
@@ -335,7 +344,9 @@ void *seghandler(void* arg) {
 				}
 				break;
 			case CLOSEWAIT:
-				if (segBuf.header.type == FIN && segBuf.header.src_port == serverTcb->client_portNum) {
+				if (segBuf.header.type == FIN 
+						&& segBuf.header.src_port == serverTcb->client_portNum
+						&& serverTcb->client_nodeID == src_nodeID) {
 					printf("SERVER: RECEIVED FIN (HAS CLOSEWAIT)\n");
 					seg_t finack;
 					finack.header.type = FINACK;
@@ -344,7 +355,7 @@ void *seghandler(void* arg) {
 					finack.header.seq_num = 0;
 					finack.header.ack_num = serverTcb->expect_seqNum;
 					finack.header.length = 0;
-					sip_sendseg(sip_conn, &finack);
+					sip_sendseg(sip_conn, serverTcb->client_nodeID, &finack);
 				}
 				else
 					printf("SERVER: IN CLOSEWAIT, NO FIN SEG RECEIVED\n");

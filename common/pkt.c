@@ -11,15 +11,15 @@
 #include <sys/socket.h>
 #include <string.h>
 
-const char* BEGIN_SIGN = "!&";
-const char* END_SIGN = "!#";
+const char* BEGIN_FLAG = "!&";
+const char* END_FLAG = "!#";
 const char* PKT_TYPE[3] = {"", "ROUTE_UPDATE", "SIP"};
 
 // son_sendpkt()由SIP进程调用, 其作用是要求SON进程将报文发送到重叠网络中. 
 // SON进程和SIP进程通过一个本地TCP连接互连.
 int son_sendpkt(int nextNodeID, sip_pkt_t* pkt, int son_conn)
 {
-	if (send(son_conn, BEGIN_SIGN, 2, 0) <= 0) {
+	if (send(son_conn, BEGIN_FLAG, 2, 0) <= 0) {
         printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [SEND] [BEGIN]\n");
 		return -1;
 	}
@@ -31,7 +31,7 @@ int son_sendpkt(int nextNodeID, sip_pkt_t* pkt, int son_conn)
 		printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [SEND] [PACKET]\n");
 		return -1;
 	}
-	if (send(son_conn, END_SIGN, 2, 0) <= 0) {
+	if (send(son_conn, END_FLAG, 2, 0) <= 0) {
         printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [SEND] [END]\n");
 		return -1;
 	}
@@ -73,7 +73,7 @@ int son_recvpkt(sip_pkt_t* pkt, int son_conn)
 
 	// 确保以!#结尾
 	if ((n = recv(son_conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_SIGN) != 0)
+		if (strcmp(sign, END_FLAG) != 0)
 			return 0;
 	} else if (n <= 0) {
 		printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [RECV] [END]\n");
@@ -125,7 +125,7 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode,int sip_conn)
 	
 	// 确保以!#结尾
 	if ((n = recv(sip_conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_SIGN) != 0)
+		if (strcmp(sign, END_FLAG) != 0)
 			return 0;
 	} else if (n <= 0) {
 		printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [RECV] [END]\n");
@@ -142,7 +142,7 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode,int sip_conn)
 // 参数sip_conn是SIP进程和SON进程之间的TCP连接的套接字描述符. 
 int forwardpktToSIP(sip_pkt_t* pkt, int sip_conn)
 {
-	if (send(sip_conn, BEGIN_SIGN, 2, 0) <= 0) {
+	if (send(sip_conn, BEGIN_FLAG, 2, 0) <= 0) {
         printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [SEND] [BEGIN]\n");
 		return -1;
 	}
@@ -150,7 +150,7 @@ int forwardpktToSIP(sip_pkt_t* pkt, int sip_conn)
 		printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [SEND] [PACKET]\n");
 		return -1;
 	}
-	if (send(sip_conn, END_SIGN, 2, 0) <= 0) {
+	if (send(sip_conn, END_FLAG, 2, 0) <= 0) {
         printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [SEND] [END]\n");
 		return -1;
 	}
@@ -163,7 +163,7 @@ int forwardpktToSIP(sip_pkt_t* pkt, int sip_conn)
 // 参数conn是到下一跳节点的TCP连接的套接字描述符.
 int sendpkt(sip_pkt_t* pkt, int conn)
 {
-	if (send(conn, BEGIN_SIGN, 2, 0) <= 0) {
+	if (send(conn, BEGIN_FLAG, 2, 0) <= 0) {
         printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [SEND] [BEGIN]\n");
 		return -1;
 	}
@@ -171,7 +171,7 @@ int sendpkt(sip_pkt_t* pkt, int conn)
 		printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [SEND] [PACKET]\n");
 		return -1;
 	}
-	if (send(conn, END_SIGN, 2, 0) <= 0) {
+	if (send(conn, END_FLAG, 2, 0) <= 0) {
         printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [SEND] [END]\n");
 		return -1;
 	}
@@ -213,7 +213,7 @@ int recvpkt(sip_pkt_t* pkt, int conn)
 	
 	// 确保以!#结尾
 	if ((n = recv(conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_SIGN) != 0)
+		if (strcmp(sign, END_FLAG) != 0)
 			return 0;
 	} else if (n <= 0) {
 		printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [RECV] [END]\n");

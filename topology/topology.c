@@ -24,7 +24,7 @@ const char* TOPO_HOST_IP[TOPO_HOST_NUM][2] = {
         {"netlab_4", "114.212.190.188"},
     };
 int head[MAX_NODE_NUM], nodeNum, edgeCnt = 0;
-link_edge_t edges[MAX_NODE_NUM * MAX_NODE_NUM];
+topo_edge_t edges[MAX_NODE_NUM * MAX_NODE_NUM];
 
 
 void add(int from, int to, int cost)
