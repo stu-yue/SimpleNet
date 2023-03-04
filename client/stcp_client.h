@@ -77,10 +77,11 @@ int stcp_client_sock(unsigned int client_port);
  * 			如果收到了, 就返回1. 否则, 如果重传SYN的次数大于SYN_MAX_RETRY, 就将state转换到CLOSED, 并返回-1.
  * 
  * @param socked 
+ * @param nodeID
  * @param server_port 
  * @return int 
  */
-int stcp_client_connect(int socked, unsigned int server_port);
+int stcp_client_connect(int sockfd, int nodeID, unsigned int server_port);
 
 
 /**

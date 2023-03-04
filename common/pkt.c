@@ -11,8 +11,8 @@
 #include <sys/socket.h>
 #include <string.h>
 
-const char* BEGIN_SIGN = "!&";
-const char* END_SIGN = "!#";
+const char* BEGIN_FLAG = "!&";
+const char* END_FLAG = "!#";
 const char* PKT_TYPE[3] = {"", "ROUTE_UPDATE", "SIP"};
 
 // son_sendpkt()由SIP进程调用, 其作用是要求SON进程将报文发送到重叠网络中. 
@@ -74,7 +74,7 @@ int son_recvpkt(sip_pkt_t* pkt, int son_conn)
 
 	// 确保以!#结尾
 	if ((n = recv(son_conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_SIGN) != 0)
+		if (strcmp(sign, END_FLAG) != 0)
 			return 0;
 	} else if (n <= 0) {
 		printf("SON_CONN[%d] ERROR: [SIP] CAN'T [RECV] [END]\n", son_conn);
@@ -127,7 +127,7 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode,int sip_conn)
 	
 	// 确保以!#结尾
 	if ((n = recv(sip_conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_SIGN) != 0)
+		if (strcmp(sign, END_FLAG) != 0)
 			return 0;
 	} else if (n <= 0) {
 		printf("SIP_CONN[%d] ERROR: [SON] CAN'T [RECV] [END]\n", sip_conn);
@@ -218,7 +218,7 @@ int recvpkt(sip_pkt_t* pkt, int conn)
 	
 	// 确保以!#结尾
 	if ((n = recv(conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_SIGN) != 0)
+		if (strcmp(sign, END_FLAG) != 0)
 			return 0;
 	} else if (n <= 0) {
 		printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [RECV] [END]\n", conn);
