@@ -72,26 +72,28 @@ void* pkthandler(void* arg)
 
 //这个函数终止SIP进程, 当SIP进程收到信号SIGINT时会调用这个函数. 
 //它关闭所有连接, 释放所有动态分配的内存.
-void sip_stop() 
+void sip_stop()
 {
+	printf("SIP: CLOSE SON_CONN\n");
 	close(son_conn);
 	exit(0);
 }
 
 int main(int argc, char *argv[]) 
 {
-	printf("SIP layer is starting, please wait...\n");
+	printf("SIP LAYER IS STARTING, PLEASE WAIT...\n");
 
 	//初始化全局变量
 	son_conn = -1;
 
 	//注册用于终止进程的信号句柄
 	signal(SIGINT, sip_stop);
+	signal(SIGKILL, sip_stop);
 
 	//连接到重叠网络层SON
 	son_conn = connectToSON();
 	if (son_conn < 0) {
-		printf("can't connect to SON process\n");
+		printf("CAN'T CONNECT TO SON PROCESS\n");
 		exit(1);		
 	}
 	
@@ -103,7 +105,7 @@ int main(int argc, char *argv[])
 	pthread_t routeupdate_thread;
 	pthread_create(&routeupdate_thread, NULL, routeupdate_daemon, (void*)0);	
 
-	printf("SIP layer is started...\n");
+	printf("SIP LAYER IS STARTED...\n");
 
 	//永久睡眠
 	while(1) {

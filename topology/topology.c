@@ -18,10 +18,10 @@
 
 // 拓扑节点与IP对应关系
 const char* TOPO_HOST_IP[TOPO_HOST_NUM][2] = { 
-        {"netlab_1", "114.212.190.185"}, 
-        {"netlab_2", "114.212.190.186"},
-        {"netlab_3", "114.212.190.187"},
-        {"netlab_4", "114.212.190.188"},
+        {"netlab_1", "192.168.163.201"}, 
+        {"netlab_2", "192.168.163.202"},
+        {"netlab_3", "192.168.163.203"},
+        {"netlab_4", "192.168.163.204"},
     };
 int head[MAX_NODE_NUM], nodeNum, edgeCnt = 0;
 link_edge_t edges[MAX_NODE_NUM * MAX_NODE_NUM];
@@ -118,7 +118,6 @@ int topology_getNodeIDfromIP(struct in_addr* addr)
 
 int topology_getMyNodeID()
 {
-    return 1;
     char hostname[256];
     if (gethostname(hostname, 256) != -1) {
         return topology_getNodeIDfromName(hostname);
