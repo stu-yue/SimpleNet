@@ -26,13 +26,11 @@ nbr_entry_t* nt_create()
     nbr_entry_t* nt = (nbr_entry_t*)malloc(sizeof(nbr_entry_t) * nbrNum);
     int* nbrID = topology_getNbrArray();
     in_addr_t* nbrIP = topology_getNbrIPArray();
-    printf("CLEAR\n");
     for (int i = 0; i < nbrNum; i++) {
         nt[i].nodeID = nbrID[i];
         nt[i].nodeIP = nbrIP[i];
         nt[i].conn = -1;
     }
-    printf("CLEAR\n");
     return nt;
 }
 

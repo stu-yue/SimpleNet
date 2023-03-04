@@ -19,24 +19,25 @@ const char* PKT_TYPE[3] = {"", "ROUTE_UPDATE", "SIP"};
 // SON进程和SIP进程通过一个本地TCP连接互连.
 int son_sendpkt(int nextNodeID, sip_pkt_t* pkt, int son_conn)
 {
-	if (send(son_conn, BEGIN_FLAG, 2, 0) <= 0) {
-        printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [SEND] [BEGIN]\n");
+	if (send(son_conn, BEGIN_SIGN, 2, 0) <= 0) {
+        printf("SON_CONN[%d] ERROR: [SIP] CAN'T [SEND] [BEGIN]\n", son_conn);
 		return -1;
 	}
 	if (send(son_conn, &nextNodeID, 4, 0) <= 0) {
-        printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [SEND] [NEXT NODEID]\n");
+        printf("SON_CONN[%d] ERROR: [SIP] CAN'T [SEND] [NEXT NODEID]\n", son_conn);
 		return -1;
 	}
 	if (send(son_conn, pkt, sizeof(sip_pkt_t), 0) <= 0) {
-		printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [SEND] [PACKET]\n");
+		printf("SON_CONN[%d] ERROR: [SIP] CAN'T [SEND] [PACKET]\n", son_conn);
 		return -1;
 	}
-	if (send(son_conn, END_FLAG, 2, 0) <= 0) {
-        printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [SEND] [END]\n");
+	if (send(son_conn, END_SIGN, 2, 0) <= 0) {
+        printf("SON_CONN[%d] ERROR: [SIP] CAN'T [SEND] [END]\n", son_conn);
 		return -1;
 	}
-	printf("PKT[%s] [SON_CONN] SEND: %d BYTES [SRC: %2d | DST: %2d]\n", 
-		PKT_TYPE[pkt->header.type], pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
+	printf("PKT[%s] SON_CONN[%d] SEND: %d BYTES [SRC: %2d | DST: %2d]\n", 
+		PKT_TYPE[pkt->header.type], son_conn, 
+		pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
 	return 1;
 }
 
@@ -61,13 +62,13 @@ int son_recvpkt(sip_pkt_t* pkt, int son_conn)
 	if (n == 0)
 		return 0;
 	if (n < 0) {
-		printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [RECV] [BEGIN]\n");
+		printf("SON_CONN[%d] ERROR: [SIP] CAN'T [RECV] [BEGIN]\n", son_conn);
 		return -1;
 	}
 
     // 接收pkt
 	if ((n = recv(son_conn, pkt, sizeof(sip_pkt_t), 0)) <= 0) {
-		printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [RECV] [PACKET]\n");
+		printf("SON_CONN[%d] ERROR: [SIP] CAN'T [RECV] [PACKET]\n", son_conn);
 		return -1;
 	}
 
@@ -76,12 +77,13 @@ int son_recvpkt(sip_pkt_t* pkt, int son_conn)
 		if (strcmp(sign, END_FLAG) != 0)
 			return 0;
 	} else if (n <= 0) {
-		printf("CONNECTION[SON_CONN] ERROR: [SIP] CAN'T [RECV] [END]\n");
+		printf("SON_CONN[%d] ERROR: [SIP] CAN'T [RECV] [END]\n", son_conn);
 		return -1;
 	}
 	
-    printf("PKT[%s] [SON_CONN] RECV: %d BYTES [SRC: %2d | DST: %2d]\n", 
-		PKT_TYPE[pkt->header.type], pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
+    printf("PKT[%s] SON_CONN[%d] RECV: %d BYTES [SRC: %2d | DST: %2d]\n", 
+		PKT_TYPE[pkt->header.type], son_conn,
+		pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
     return 1;
 }
 
@@ -107,19 +109,19 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode,int sip_conn)
 	if (n == 0)
 		return 0;
 	if (n < 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [RECV] [BEGIN]\n");
+		printf("SIP_CONN[%d] ERROR: [SON] CAN'T [RECV] [BEGIN]\n", sip_conn);
 		return -1;
 	}
 
     // 接收nextNode
 	if ((n = recv(sip_conn, nextNode, 4, 0)) <= 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [RECV] [NEXT NODEID]\n");
+		printf("SIP_CONN[%d] ERROR: [SON] CAN'T [RECV] [NEXT NODEID]\n", sip_conn);
 		return -1;
 	}
 
     // 接收pkt
 	if ((n = recv(sip_conn, pkt, sizeof(sip_pkt_t), 0)) <= 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [RECV] [PACKET]\n");
+		printf("SIP_CONN[%d] ERROR: [SON] CAN'T [RECV] [PACKET]\n", sip_conn);
 		return -1;
 	}
 	
@@ -128,12 +130,13 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode,int sip_conn)
 		if (strcmp(sign, END_FLAG) != 0)
 			return 0;
 	} else if (n <= 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [RECV] [END]\n");
+		printf("SIP_CONN[%d] ERROR: [SON] CAN'T [RECV] [END]\n", sip_conn);
 		return -1;
 	}
 	
-    printf("PKT[%s] [SIP_CONN] RECV: %d BYTES [SRC: %2d | DST: %2d]\n", 
-		PKT_TYPE[pkt->header.type], pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
+    printf("PKT[%s] SIP_CONN[%d] RECV: %d BYTES [SRC: %2d | DST: %2d]\n", 
+		PKT_TYPE[pkt->header.type], sip_conn,
+		pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
     return 1;
 }
 
@@ -142,20 +145,21 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode,int sip_conn)
 // 参数sip_conn是SIP进程和SON进程之间的TCP连接的套接字描述符. 
 int forwardpktToSIP(sip_pkt_t* pkt, int sip_conn)
 {
-	if (send(sip_conn, BEGIN_FLAG, 2, 0) <= 0) {
-        printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [SEND] [BEGIN]\n");
+	if (send(sip_conn, BEGIN_SIGN, 2, 0) <= 0) {
+        printf("SIP_CONN[%d] ERROR: [SON] CAN'T [SEND] [BEGIN]\n", sip_conn);
 		return -1;
 	}
 	if (send(sip_conn, pkt, sizeof(sip_pkt_t), 0) <= 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [SEND] [PACKET]\n");
+		printf("SIP_CONN[%d] ERROR: [SON] CAN'T [SEND] [PACKET]\n", sip_conn);
 		return -1;
 	}
-	if (send(sip_conn, END_FLAG, 2, 0) <= 0) {
-        printf("CONNECTION[SIP_CONN] ERROR: [SON] CAN'T [SEND] [END]\n");
+	if (send(sip_conn, END_SIGN, 2, 0) <= 0) {
+        printf("SIP_CONN[%d] ERROR: [SON] CAN'T [SEND] [END]\n", sip_conn);
 		return -1;
 	}
-	printf("PKT[%s] [SIP_CONN] SEND: %d BYTES [SRC: %2d | DST: %2d]\n", 
-		PKT_TYPE[pkt->header.type], pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
+	printf("PKT[%s] SIP_CONN[%d] SEND: %d BYTES [SRC: %2d | DST: %2d]\n", 
+		PKT_TYPE[pkt->header.type], sip_conn,
+		pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
 	return 1;
 }
 
@@ -163,20 +167,21 @@ int forwardpktToSIP(sip_pkt_t* pkt, int sip_conn)
 // 参数conn是到下一跳节点的TCP连接的套接字描述符.
 int sendpkt(sip_pkt_t* pkt, int conn)
 {
-	if (send(conn, BEGIN_FLAG, 2, 0) <= 0) {
-        printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [SEND] [BEGIN]\n");
+	if (send(conn, BEGIN_SIGN, 2, 0) <= 0) {
+        printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [SEND] [BEGIN]\n", conn);
 		return -1;
 	}
 	if (send(conn, pkt, sizeof(sip_pkt_t), 0) <= 0) {
-		printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [SEND] [PACKET]\n");
+		printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [SEND] [PACKET]\n", conn);
 		return -1;
 	}
-	if (send(conn, END_FLAG, 2, 0) <= 0) {
-        printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [SEND] [END]\n");
+	if (send(conn, END_SIGN, 2, 0) <= 0) {
+        printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [SEND] [END]\n", conn);
 		return -1;
 	}
-	printf("PKT[%s] [NXT_CONN] SEND: %d BYTES [SRC: %2d | DST: %2d]\n", 
-		PKT_TYPE[pkt->header.type], pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
+	printf("PKT[%s] NEXT_CONN[%d] SEND: %d BYTES [SRC: %2d | DST: %2d]\n", 
+		PKT_TYPE[pkt->header.type], conn,
+		pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
 	return 1;
 }
 
@@ -201,13 +206,13 @@ int recvpkt(sip_pkt_t* pkt, int conn)
 	if (n == 0)
 		return 0;
 	if (n < 0) {
-		printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [RECV] [BEGIN]\n");
+		printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [RECV] [BEGIN]\n", conn);
 		return -1;
 	}
 
     // 接收pkt
 	if ((n = recv(conn, pkt, sizeof(sip_pkt_t), 0)) <= 0) {
-		printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [RECV] [PACKET]\n");
+		printf("CNEXT_CONN[%d] ERROR: [SON] CAN'T [RECV] [PACKET]\n", conn);
 		return -1;
 	}
 	
@@ -216,11 +221,12 @@ int recvpkt(sip_pkt_t* pkt, int conn)
 		if (strcmp(sign, END_FLAG) != 0)
 			return 0;
 	} else if (n <= 0) {
-		printf("CONNECTION[NXT_CONN] ERROR: [SON] CAN'T [RECV] [END]\n");
+		printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [RECV] [END]\n", conn);
 		return -1;
 	}
 	
-    printf("PKT[%s] [NXT_CONN] RECV: %d BYTES [SRC: %2d | DST: %2d]\n", 
-		PKT_TYPE[pkt->header.type], pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
+    printf("PKT[%s] NEXT_CONN[%d] RECV: %d BYTES [SRC: %2d | DST: %2d]\n", 
+		PKT_TYPE[pkt->header.type], conn, 
+		pkt->header.length, pkt->header.src_nodeID, pkt->header.dest_nodeID);
     return 1;
 }

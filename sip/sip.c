@@ -131,9 +131,11 @@ void* pkthandler(void* arg)
 }
 
 
-void sip_stop() 
+//这个函数终止SIP进程, 当SIP进程收到信号SIGINT时会调用这个函数. 
+//它关闭所有连接, 释放所有动态分配的内存.
+void sip_stop()
 {
-	printf("SIP: STOP\n");
+	printf("SIP: CLOSE SON_CONN\n");
 	close(son_conn);
 	close(stcp_conn);
 	nbrcosttable_destroy(nct);
@@ -184,7 +186,9 @@ void waitSTCP()
 
 int main(int argc, char *argv[]) 
 {
-	printf("SIP layer is starting, pls wait...\n");
+
+	printf("SIP LAYER IS STARTING, PLEASE WAIT...\n");
+
 
 	//初始化全局变量
 	nct = nbrcosttable_create();
@@ -203,11 +207,13 @@ int main(int argc, char *argv[])
 
 	//注册用于终止进程的信号句柄
 	signal(SIGINT, sip_stop);
+	signal(SIGKILL, sip_stop);
 
 	//连接到本地SON进程 
 	son_conn = connectToSON();
-	if(son_conn < 0) {
-		printf("can't connect to SON process\n");
+
+	if (son_conn < 0) {
+		printf("CAN'T CONNECT TO SON PROCESS\n");
 		exit(1);		
 	}
 	
@@ -219,10 +225,9 @@ int main(int argc, char *argv[])
 	pthread_t routeupdate_thread;
 	pthread_create(&routeupdate_thread, NULL, routeupdate_daemon, (void*)0);	
 
-	printf("SIP layer is started...\n");
-	printf("waiting for routes to be established\n");
-	sleep(SIP_WAITTIME);
-	routingtable_print(routingtable);
+
+	printf("SIP LAYER IS STARTED...\n");
+
 
 	//等待来自STCP进程的连接
 	printf("waiting for connection from STCP process\n");
