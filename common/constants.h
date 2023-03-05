@@ -9,13 +9,12 @@
 #define CONSTANTS_H
 
 
-/* 传输层参数 */
-
+/* STCP参数 */
 //这是STCP可以支持的最大连接数. 你的TCB表应包含MAX_TRANSPORT_CONNECTIONS个条目.
 #define MAX_TRANSPORT_CONNECTIONS 10
 //最大段长度: 1500 - sizeof(seg header) - sizeof(ip header)
-//#define MAX_SEG_LEN  1464
-#define MAX_SEG_LEN 200
+// #define MAX_SEG_LEN  1464
+#define MAX_SEG_LEN 50
 //数据包丢失率为10%
 #define PKT_LOSS_RATE 0.1
 //SYN_TIMEOUT值, 单位为纳秒
@@ -41,27 +40,28 @@
 //GBN窗口大小
 #define GBN_WINDOW 10
 
-/* SON参数 */
 
+/* SON参数 */
 //这个端口号用于重叠网络中节点之间的互联
-#define CONNECTION_PORT 5022
+#define CONNECTION_PORT 6000
 //这个端口号由SON进程打开, 并由SIP进程连接
-#define SON_PORT 5522
+#define SON_PORT 6500
 //最大SIP报文数据长度: 1500 - sizeof(sip header)
 #define MAX_PKT_LEN 1488 
 
+
 /* SIP参数 */
 //重叠网络支持的最大节点数  
-#define MAX_NODE_NUM 10
+#define MAX_NODE_NUM 5
 //最大路由表槽数 
 #define MAX_ROUTINGTABLE_SLOTS 10
 //无穷大的链路代价值, 如果两个节点断开连接了, 它们之间的链路代价值就是INFINITE_COST
 #define INFINITE_COST 999
 //SIP进程打开这个端口并等待来自STCP进程的连接
-#define SIP_PORT 6022
+#define SIP_PORT 6600
 //这是广播节点ID. 
 #define BROADCAST_NODEID 9999
 //路由更新广播间隔, 以秒为单位
-#define ROUTEUPDATE_INTERVAL 5
+#define ROUTEUPDATE_INTERVAL 300
 
 #endif

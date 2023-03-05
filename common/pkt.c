@@ -19,7 +19,7 @@ const char* PKT_TYPE[3] = {"", "ROUTE_UPDATE", "SIP"};
 // SON进程和SIP进程通过一个本地TCP连接互连.
 int son_sendpkt(int nextNodeID, sip_pkt_t* pkt, int son_conn)
 {
-	if (send(son_conn, BEGIN_SIGN, 2, 0) <= 0) {
+	if (send(son_conn, BEGIN_FLAG, 2, 0) <= 0) {
         printf("SON_CONN[%d] ERROR: [SIP] CAN'T [SEND] [BEGIN]\n", son_conn);
 		return -1;
 	}
@@ -31,7 +31,7 @@ int son_sendpkt(int nextNodeID, sip_pkt_t* pkt, int son_conn)
 		printf("SON_CONN[%d] ERROR: [SIP] CAN'T [SEND] [PACKET]\n", son_conn);
 		return -1;
 	}
-	if (send(son_conn, END_SIGN, 2, 0) <= 0) {
+	if (send(son_conn, END_FLAG, 2, 0) <= 0) {
         printf("SON_CONN[%d] ERROR: [SIP] CAN'T [SEND] [END]\n", son_conn);
 		return -1;
 	}
@@ -45,20 +45,15 @@ int son_sendpkt(int nextNodeID, sip_pkt_t* pkt, int son_conn)
 // 参数son_conn是SIP进程和SON进程之间TCP连接的套接字描述符. 报文通过SIP进程和SON进程之间的TCP连接发送
 int son_recvpkt(sip_pkt_t* pkt, int son_conn)
 {
-	int n,  state;
-	char sign[3] = {0, 0, 0}, ch;
+	int n;
+	char sign[3] = {0, 0, 0};
 
     // 确保以!&开始
-	state = 0;
-	while ((n = recv(son_conn, &ch, 1, 0)) == 1) {
-		switch (state){
-			case 0: state = (ch == '!' ? 1 : 0);
-				break;
-			case 1: state = (ch == '&' ? 2 : 0);
-				break; 
-		}
-		if (state == 2) break;
+	while ((n = recv(son_conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, BEGIN_FLAG) == 0) 
+			break;
 	}
+
 	if (n == 0)
 		return 0;
 	if (n < 0) {
@@ -73,10 +68,12 @@ int son_recvpkt(sip_pkt_t* pkt, int son_conn)
 	}
 
 	// 确保以!#结尾
-	if ((n = recv(son_conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_FLAG) != 0)
-			return 0;
-	} else if (n <= 0) {
+	while ((n = recv(son_conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, END_FLAG) == 0) 
+			break;
+	}
+
+	if (n <= 0) {
 		printf("SON_CONN[%d] ERROR: [SIP] CAN'T [RECV] [END]\n", son_conn);
 		return -1;
 	}
@@ -92,20 +89,15 @@ int son_recvpkt(sip_pkt_t* pkt, int son_conn)
 // 参数sip_conn是在SIP进程和SON进程之间的TCP连接的套接字描述符.
 int getpktToSend(sip_pkt_t* pkt, int* nextNode,int sip_conn)
 {
-	int n,  state;
-	char sign[3] = {0, 0, 0}, ch;
+	int n;
+	char sign[3] = {0, 0, 0};
 
     // 确保以!&开始
-	state = 0;
-	while ((n = recv(sip_conn, &ch, 1, 0)) == 1) {
-		switch (state){
-			case 0: state = (ch == '!' ? 1 : 0);
-				break;
-			case 1: state = (ch == '&' ? 2 : 0);
-				break; 
-		}
-		if (state == 2) break;
+	while ((n = recv(sip_conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, BEGIN_FLAG) == 0) 
+			break;
 	}
+
 	if (n == 0)
 		return 0;
 	if (n < 0) {
@@ -126,10 +118,12 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode,int sip_conn)
 	}
 	
 	// 确保以!#结尾
-	if ((n = recv(sip_conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_FLAG) != 0)
-			return 0;
-	} else if (n <= 0) {
+	while ((n = recv(sip_conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, END_FLAG) == 0) 
+			break;
+	}
+
+	if (n <= 0) {
 		printf("SIP_CONN[%d] ERROR: [SON] CAN'T [RECV] [END]\n", sip_conn);
 		return -1;
 	}
@@ -145,7 +139,7 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode,int sip_conn)
 // 参数sip_conn是SIP进程和SON进程之间的TCP连接的套接字描述符. 
 int forwardpktToSIP(sip_pkt_t* pkt, int sip_conn)
 {
-	if (send(sip_conn, BEGIN_SIGN, 2, 0) <= 0) {
+	if (send(sip_conn, BEGIN_FLAG, 2, 0) <= 0) {
         printf("SIP_CONN[%d] ERROR: [SON] CAN'T [SEND] [BEGIN]\n", sip_conn);
 		return -1;
 	}
@@ -153,7 +147,7 @@ int forwardpktToSIP(sip_pkt_t* pkt, int sip_conn)
 		printf("SIP_CONN[%d] ERROR: [SON] CAN'T [SEND] [PACKET]\n", sip_conn);
 		return -1;
 	}
-	if (send(sip_conn, END_SIGN, 2, 0) <= 0) {
+	if (send(sip_conn, END_FLAG, 2, 0) <= 0) {
         printf("SIP_CONN[%d] ERROR: [SON] CAN'T [SEND] [END]\n", sip_conn);
 		return -1;
 	}
@@ -167,7 +161,7 @@ int forwardpktToSIP(sip_pkt_t* pkt, int sip_conn)
 // 参数conn是到下一跳节点的TCP连接的套接字描述符.
 int sendpkt(sip_pkt_t* pkt, int conn)
 {
-	if (send(conn, BEGIN_SIGN, 2, 0) <= 0) {
+	if (send(conn, BEGIN_FLAG, 2, 0) <= 0) {
         printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [SEND] [BEGIN]\n", conn);
 		return -1;
 	}
@@ -175,7 +169,7 @@ int sendpkt(sip_pkt_t* pkt, int conn)
 		printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [SEND] [PACKET]\n", conn);
 		return -1;
 	}
-	if (send(conn, END_SIGN, 2, 0) <= 0) {
+	if (send(conn, END_FLAG, 2, 0) <= 0) {
         printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [SEND] [END]\n", conn);
 		return -1;
 	}
@@ -189,20 +183,18 @@ int sendpkt(sip_pkt_t* pkt, int conn)
 // 参数conn是到其邻居的TCP连接的套接字描述符,报文通过SON进程和其邻居之间的TCP连接发送
 int recvpkt(sip_pkt_t* pkt, int conn)
 {
-	int n,  state;
-	char sign[3] = {0, 0, 0}, ch;
+	int n;
+	char sign[3] = {0, 0, 0};
 
     // 确保以!&开始
-	state = 0;
-	while ((n = recv(conn, &ch, 1, 0)) == 1) {
-		switch (state){
-			case 0: state = (ch == '!' ? 1 : 0);
-				break;
-			case 1: state = (ch == '&' ? 2 : 0);
-				break; 
-		}
-		if (state == 2) break;
+	while ((n = recv(conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, BEGIN_FLAG) == 0) 
+			break;
 	}
+
+		if (conn == 6) {
+			printf("PKT[%s], BEGIN_SIGN[%s]\n", PKT_TYPE[pkt->header.type], sign);
+		}
 	if (n == 0)
 		return 0;
 	if (n < 0) {
@@ -215,12 +207,21 @@ int recvpkt(sip_pkt_t* pkt, int conn)
 		printf("CNEXT_CONN[%d] ERROR: [SON] CAN'T [RECV] [PACKET]\n", conn);
 		return -1;
 	}
+		if (conn == 6) {
+			printf("PKT[%s]\n", PKT_TYPE[pkt->header.type]);
+		}
 	
 	// 确保以!#结尾
-	if ((n = recv(conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_FLAG) != 0)
-			return 0;
-	} else if (n <= 0) {
+	while ((n = recv(conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, END_FLAG) == 0) 
+			break;
+	}
+		
+	if (conn == 6) {
+		printf("PKT[%s], END_SIGN[%s]\n", PKT_TYPE[pkt->header.type], sign);
+	}
+
+	if (n <= 0) {
 		printf("NEXT_CONN[%d] ERROR: [SON] CAN'T [RECV] [END]\n", conn);
 		return -1;
 	}

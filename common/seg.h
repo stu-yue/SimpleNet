@@ -100,9 +100,10 @@ int forwardsegToSTCP(int stcp_conn, int src_nodeID, seg_t* segPtr);
  * 			如果段丢失了, 就返回1, 否则返回0.
  * 
  * @param segPtr 
+ * @param sip_conn
  * @return int 
  */
-int seglost(seg_t* segPtr); 
+int seglost(seg_t* segPtr, int sip_conn); 
 
 
 /**

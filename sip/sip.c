@@ -55,6 +55,9 @@ void* routeupdate_daemon(void* arg)
 	while (1) {
 		select(0, 0, 0, 0, &(struct timeval){.tv_sec = ROUTEUPDATE_INTERVAL});
 		
+		if (son_conn < 0 && (son_conn = connectToSON()) < 0)
+			continue;
+
 		pthread_mutex_lock(dv_mutex);
 		int myNodeID = topology_getMyNodeID();
 		int* nodeArr = topology_getNodeArray();
@@ -73,7 +76,9 @@ void* routeupdate_daemon(void* arg)
 		pkt.header.type = ROUTE_UPDATE;
 		pkt.header.length = sizeof(pkt_rp);
 		memcpy(pkt.data, &pkt_rp, pkt.header.length);
-		son_sendpkt(BROADCAST_NODEID, &pkt, son_conn);
+		if (son_sendpkt(BROADCAST_NODEID, &pkt, son_conn) < 0) {
+			son_conn = -1;
+		}
 	}
 }
 
@@ -83,19 +88,26 @@ void* pkthandler(void* arg)
 	sip_pkt_t pkt;
 	seg_t seg;
 	pkt_routeupdate_t pkt_rp;
+	int n;
+
 	while (1) {
-		if (son_recvpkt(&pkt, son_conn) > 0) {
+		if (son_conn < 0) continue;
+
+		if ((n = son_recvpkt(&pkt, son_conn)) > 0) {
 			if (pkt.header.type == SIP) {
 				if (pkt.header.dest_nodeID == topology_getMyNodeID()) {
 					memcpy(&seg, pkt.data, pkt.header.length);
-					forwardsegToSTCP(stcp_conn, pkt.header.src_nodeID, &seg);
+					if (stcp_conn > 0)
+						if (forwardsegToSTCP(stcp_conn, pkt.header.src_nodeID, &seg) < 0)
+							stcp_conn = -1;
 				} else {
 					pthread_mutex_lock(routingtable_mutex);
 					int next_NodeID = routingtable_getnextnode(routingtable, pkt.header.dest_nodeID);
 					pthread_mutex_unlock(routingtable_mutex);
 					if (next_NodeID != -1) {
-						printf("FROWARD: from Node_%d to Node_%d\n", pkt.header.src_nodeID, pkt.header.dest_nodeID);
-						son_sendpkt(next_NodeID, &pkt, son_conn);
+						printf("SIP: FROWARD PKT FROM NODE[%d] TO NODE[%d]\n", pkt.header.src_nodeID, pkt.header.dest_nodeID);
+						if (son_sendpkt(next_NodeID, &pkt, son_conn) < 0)
+							son_conn = -1;
 					}
 				}
 			} else if (pkt.header.type == ROUTE_UPDATE) {
@@ -126,16 +138,68 @@ void* pkthandler(void* arg)
 				}
 				pthread_mutex_unlock(dv_mutex);
 			}
+		} else if (n <= 0) {
+			son_conn = -1;
 		}
 	}
 }
 
 
-//这个函数终止SIP进程, 当SIP进程收到信号SIGINT时会调用这个函数. 
-//它关闭所有连接, 释放所有动态分配的内存.
+void waitSTCP() 
+{
+	printf("SIP: WAIT STCP...\n");
+	int stcp_listenfd = tcp_server_listen(SIP_PORT);
+	if (stcp_listenfd == -1) {
+		printf("SIP: BIND STCP_LISTENFD FAILED\n");
+		pthread_exit(NULL);
+	}
+
+	sip_pkt_t pkt;
+	seg_t seg;
+	int dest_nodeID, n;
+	fd_set readmask, allreads;
+	FD_ZERO(&allreads);
+	FD_SET(stcp_listenfd, &allreads);
+	while (1) {
+		if (stcp_conn <= 0) {
+			readmask = allreads;
+			select(stcp_listenfd + 1, &readmask, NULL, NULL, &(struct timeval){.tv_usec = 1e5});
+			if (FD_ISSET(stcp_listenfd, &readmask)) {
+				struct sockaddr_in client_addr;
+				socklen_t client_len = sizeof(client_addr);
+				if ((stcp_conn = accept(stcp_listenfd, (struct sockaddr *) &client_addr, &client_len)) < 0) {
+					printf("SIP: SERVER ACCEPT FAILED\n");
+				} else {
+					printf("SIP: STCP PROCESS IS ACCEPTED\n");
+				}
+			}
+		}
+		if (stcp_conn <= 0) continue;
+
+		if ((n = getsegToSend(stcp_conn, &dest_nodeID, &seg)) > 0) {
+			pthread_mutex_lock(routingtable_mutex);
+			int next_nodeID = routingtable_getnextnode(routingtable, dest_nodeID);
+			pthread_mutex_unlock(routingtable_mutex);
+			if (next_nodeID != -1) {
+				pkt.header.src_nodeID = topology_getMyNodeID();
+				pkt.header.dest_nodeID = dest_nodeID;
+				pkt.header.length = sizeof(stcp_hdr_t) + seg.header.length;
+				pkt.header.type = SIP;
+				memcpy(pkt.data, &seg, pkt.header.length);
+				if (son_sendpkt(next_nodeID, &pkt, son_conn) < 0)
+					son_conn = -1;
+			}
+		} else if (n <= 0) {
+			printf("SIP: STCP PROCESS IS DISCONNECTED\n");
+			stcp_conn = -1;
+		}
+	}
+}
+
+
 void sip_stop()
 {
-	printf("SIP: CLOSE SON_CONN\n");
+	printf("SIP: CLOSE SON_CONN AND STCP_CONN\n");
 	close(son_conn);
 	close(stcp_conn);
 	nbrcosttable_destroy(nct);
@@ -147,48 +211,13 @@ void sip_stop()
 }
 
 
-void waitSTCP() 
-{
-	printf("WAIT SIP...\n");
-	int listenfd = tcp_server_listen(SIP_PORT);
-	struct sockaddr_in client_addr;
-	socklen_t client_len = sizeof(client_addr);
-	if ((stcp_conn = accept(listenfd, (struct sockaddr*) &client_addr, &client_len)) < 0) {
-		printf("SIP: ACCEPT FAILED\n");
-		exit(0);
-	}
-	sip_pkt_t pkt;
-	seg_t seg;
-	int dest_nodeID;
-	while (1) {
-		if (getsegToSend(stcp_conn, &dest_nodeID, &seg) > 0) {
-			pthread_mutex_lock(routingtable_mutex);
-			int next_nodeID = routingtable_getnextnode(routingtable, dest_nodeID);
-			pthread_mutex_unlock(routingtable_mutex);
-			if (next_nodeID != -1) {
-				pkt.header.src_nodeID = topology_getMyNodeID();
-				pkt.header.dest_nodeID = dest_nodeID;
-				pkt.header.length = sizeof(stcp_hdr_t) + seg.header.length;
-				pkt.header.type = SIP;
-				memcpy(pkt.data, &seg, pkt.header.length);
-				son_sendpkt(next_nodeID, &pkt, son_conn);
-			}
-		} else {
-			printf("SIP: STCP DISCONNECTED\n");
-			close(stcp_conn);
-			if ((stcp_conn = accept(listenfd, (struct sockaddr*) &client_addr, &client_len)) < 0) {
-				printf("SIP: ACCEPT FAILED\n");
-			}
-		}
-	}
-}
-
-
 int main(int argc, char *argv[]) 
 {
 
-	printf("SIP LAYER IS STARTING, PLEASE WAIT...\n");
+	printf("SIP: SIP LAYER IS STARTING, PLEASE WAIT...\n");
 
+	// 解析文件topology/topology.dat
+    topology_parseTopoDat();
 
 	//初始化全局变量
 	nct = nbrcosttable_create();
@@ -209,11 +238,11 @@ int main(int argc, char *argv[])
 	signal(SIGINT, sip_stop);
 	signal(SIGKILL, sip_stop);
 
-	//连接到本地SON进程 
+	//连接到本地SON进程
 	son_conn = connectToSON();
 
-	if (son_conn < 0) {
-		printf("CAN'T CONNECT TO SON PROCESS\n");
+	if (son_conn <= 0) {
+		printf("SIP: CAN'T CONNECT TO SON PROCESS\n");
 		exit(1);		
 	}
 	
@@ -226,10 +255,16 @@ int main(int argc, char *argv[])
 	pthread_create(&routeupdate_thread, NULL, routeupdate_daemon, (void*)0);	
 
 
-	printf("SIP LAYER IS STARTED...\n");
+	printf("SIP: SIP LAYER IS STARTED...\n");
+	printf("SIP: WAITING FOR ROUTES TO BE ESTABLISHED\n");
+	sleep(SIP_WAITTIME / 2);
+	//打印建立好的路由信息
+	nbrcosttable_print(nct);
+	dvtable_print(dv);
+	routingtable_print(routingtable);
 
 
 	//等待来自STCP进程的连接
-	printf("waiting for connection from STCP process\n");
+	printf("SIP: WAITING FOR CONNECTION FROM STCP PROCESS\n");
 	waitSTCP(); 
 }

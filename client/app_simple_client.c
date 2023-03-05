@@ -59,6 +59,9 @@ int main()
 		exit(1);
 	}
 
+	// 解析文件topology/topology.dat
+    topology_parseTopoDat();
+
 	//初始化stcp客户端
 	stcp_client_init(sip_conn);
 	sleep(STARTDELAY);
@@ -69,6 +72,7 @@ int main()
 	int server_nodeID = topology_getNodeIDfromName(hostname);
 	if(server_nodeID == -1) {
 		printf("host name error!\n");
+		disconnectToSIP(sip_conn);
 		exit(1);
 	} else {
 		printf("connecting to node %d\n", server_nodeID);

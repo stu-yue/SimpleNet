@@ -16,10 +16,7 @@
 //这个函数首先动态创建一个邻居表. 然后解析文件topology/topology.dat, 填充所有条目中的nodeID和nodeIP字段, 将conn字段初始化为-1.
 //返回创建的邻居表.
 nbr_entry_t* nt_create()
-{
-    // 解析文件topology/topology.dat
-    topology_parseTopoDat();
-    
+{    
     int nbrNum = topology_getNbrNum();
     if (nbrNum <= 0)
         return NULL;

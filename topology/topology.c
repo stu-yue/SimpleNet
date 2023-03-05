@@ -23,16 +23,16 @@ const char* TOPO_HOST_IP[TOPO_HOST_NUM][2] = {
         {"netlab_3", "192.168.163.203"},
         {"netlab_4", "192.168.163.204"},
     };
-int head[MAX_NODE_NUM], nodeNum, edgeCnt = 0;
+int head[MAX_NODE_NUM], node_num, edge_cnt = 0;
 topo_edge_t edges[MAX_NODE_NUM * MAX_NODE_NUM];
 
 
 void add(int from, int to, int cost)
 {
-    edges[++edgeCnt].cost = cost;
-    edges[edgeCnt].to = to;
-    edges[edgeCnt].next = head[from];
-    head[from] = edgeCnt;
+    edges[++edge_cnt].cost = cost;
+    edges[edge_cnt].to = to;
+    edges[edge_cnt].next = head[from];
+    head[from] = edge_cnt;
 }
 
 
@@ -73,9 +73,9 @@ int topology_parseTopoDat()
     fclose(fp);
 
     for (int i = 0; i < MAX_NODE_NUM; i++) {
-        if (head[i] > 0) nodeNum++;
+        if (head[i] > 0) node_num++;
     }
-    return nodeNum;
+    return node_num;
 }
 
 
@@ -146,7 +146,7 @@ int topology_getNbrNum()
 
 int topology_getNodeNum()
 {
-    return nodeNum;
+    return node_num;
 }
 
 

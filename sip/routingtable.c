@@ -23,7 +23,10 @@ routingtable_t* routingtable_create()
     routingtable_t* routingtable = (routingtable_t*)malloc(sizeof(routingtable_t));
     for (int i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++)
         routingtable->hash[i] = NULL;
-  
+
+    int nbrNum = topology_getNbrNum();
+    int nodeNum = topology_getNodeNum();
+    printf("nbrNum: %d | nodeNum: %d\n", nbrNum, nodeNum);
     int* nbrArr = topology_getNbrArray();
     for (int i = 0; i < topology_getNbrNum(); i++) {
         int slotIdx = makehash(nbrArr[i]);
@@ -103,18 +106,19 @@ int routingtable_getnextnode(routingtable_t* routingtable, int destNodeID)
 
 void routingtable_print(routingtable_t* routingtable)
 {
-    printf("ROUTING TABLE PRINT:\n");
+    printf("---------ROUTING TABLE PRINT---------\n");
     for (int i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
-        printf("SRC[%d]: ", i);
+        printf("SRC[%d]: ", i + 1);
         if (routingtable->hash[i]) {
             routingtable_entry_t* entry = routingtable->hash[i];
             while (entry->next) {
-                printf("[DEST: %d | NEXT: %d] --> ", entry->destNodeID, entry->nextNodeID);
+                printf("[DEST: %d |NEXT: %d] -> ", entry->destNodeID, entry->nextNodeID);
                 entry = entry->next;
             }
-            printf("[DEST: %d | NEXT: %d]\n", entry->destNodeID, entry->nextNodeID);
+            printf("[DEST: %d |NEXT: %d]\n", entry->destNodeID, entry->nextNodeID);
         } else {
             printf("NULL\n");
         }
     }
+    printf("-------------------------------------\n");
 }

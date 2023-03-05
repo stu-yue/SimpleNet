@@ -31,16 +31,17 @@
 
 /* 声明全局变量 */
 
-// 将邻居表声明为一个全局变量 
+// 将邻居表声明为一个全局变量
 nbr_entry_t* nt; 
 // 将与SIP进程之间的TCP连接声明为一个全局变量
 int sip_conn; 
 int listenfd;
+// 全局变量访问锁
+pthread_mutex_t son_mutex;
 
 /* 实现重叠网络函数 */
 
-// 这个线程打开TCP端口CONNECTION_PORT, 等待节点ID比自己大的所有邻居的进入连接,
-// 在所有进入连接都建立后, 这个线程终止. 
+// 这个线程打开TCP端口CONNECTION_PORT, 等待节点ID比自己大的所有邻居的进入连接
 void* waitNbrs(void* arg) 
 {
 	int myNodeID = topology_getMyNodeID();
@@ -78,7 +79,7 @@ void* waitNbrs(void* arg)
 				for(int i = 0; i < nbrNum; i++) {
 					printf("OVERLAY NETWORK: NEIGHBOR[%d] | NODEID[%d] | NODEIP[%8d] | CONN[%d]\n", 
 						i + 1, nt[i].nodeID, nt[i].nodeIP, nt[i].conn);
-				}
+				}		
 			}
 		}
 	}
@@ -118,15 +119,14 @@ void* listen_to_neighbor(void* arg)
 	sip_pkt_t pkt;
 	while (1) {
 		if ((n = recvpkt(&pkt, nt[*idx].conn)) > 0) {
-			if (sip_conn > 0)
-				if (forwardpktToSIP(&pkt, sip_conn) < 0)
-					sip_conn = -1;
+			if (forwardpktToSIP(&pkt, sip_conn) < 0)
+				sip_conn = -1;
 		} else if (n < 0) {
-			printf("SON: NEIGHBOR[%d] IS LOST\n", *idx + 1);
+			printf("n:%d\n", n);
+			printf("SON: NEIGHBOR[%d] IS DISCONNECTED\n", *idx + 1);
 			nt[*idx].conn = -1;
 			pthread_exit(NULL);
 		}
-		// printf("SON: LISTEN TO NEIGHBOR n[%d]\n", n);
 	}
 }
 
@@ -148,7 +148,6 @@ void waitSIP()
 	FD_ZERO(&allreads);
 	FD_SET(sip_listenfd, &allreads);
 	while (1) {
-		// printf("SON: SIP_CONN[%d], n[%d]\n", sip_conn, n);
 		if (sip_conn <= 0) {
 			readmask = allreads;
 			select(sip_listenfd + 1, &readmask, NULL, NULL, &(struct timeval){.tv_usec = 1e5});
@@ -171,25 +170,23 @@ void waitSIP()
 					if (nt[i].conn > 0)
 						if (sendpkt(&pkt, nt[i].conn) < 0)
 							nt[i].conn = -1;
-					// printf("SON: RECV [BROADCAST_BODEID] FROM SIP\n");
 				}
 			} else {
 				int nbrNum = topology_getNbrNum();
 				for (int i = 0; i < nbrNum; i++) {
-					if (nt[i].nodeID == nextNode)
-						sendpkt(&pkt, nt[i].conn);
+					if (nt[i].nodeID == nextNode && nt[i].conn > 0)
+						if (sendpkt(&pkt, nt[i].conn) < 0)
+							nt[i].conn = -1;
 				}
 			}
-		} else if (n < 0) {
-			printf("SON: SIP PROCESS IS CLOSED\n");
+		} else if (n <= 0) {
+			printf("SON: SIP PROCESS IS DISCONNECTED\n");
 			sip_conn = -1;
 		}
-		// printf("SON: SIP_CONN[%d], n[%d]\n", sip_conn, n);
 	}
 }
 
-//这个函数停止重叠网络, 当接收到信号SIGINT时, 该函数被调用.
-//它关闭所有的连接, 释放所有动态分配的内存.
+
 void son_stop() 
 {
 	printf("SON: CLOSE SIP_CONN\n");
@@ -207,10 +204,15 @@ int main()
 	//启动重叠网络初始化工作
 	printf("OVERLAY NETWORK: NODE[%d] INITIALIZING...\n", topology_getMyNodeID());	
 
+	// 解析文件topology/topology.dat
+    topology_parseTopoDat();
+
 	//创建一个邻居表
 	nt = nt_create();
 	//将sip_conn初始化为-1, 即还未与SIP进程连接
 	sip_conn = -1;
+	//初始化全局变量访问锁
+	pthread_mutex_init(&son_mutex, NULL);
 	
 	//注册一个信号句柄, 用于终止进程
 	signal(SIGINT, son_stop);
@@ -247,7 +249,12 @@ int main()
 	// }
 
 	//等待与邻居间连接建立好
-	sleep(SON_START_DELAY);
+	sleep(SON_START_DELAY / 2);
+	// 打印邻居表
+	for(int i = 0; i < nbrNum; i++) {
+		printf("OVERLAY NETWORK: NEIGHBOR[%d] | NODEID[%d] | NODEIP[%8d] | CONN[%d]\n", 
+			i + 1, nt[i].nodeID, nt[i].nodeIP, nt[i].conn);
+	}	
 
 	printf("OVERLAY NETWORK: NODE[%d] INITIALIZED...\n", topology_getMyNodeID());
 	printf("OVERLAY NETWORK: WAITING FOR CONNECTION FROM SIP PROCESSS...\n");

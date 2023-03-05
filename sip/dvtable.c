@@ -23,13 +23,14 @@ dv_t* dvtable_create()
     int nodeNum = topology_getNodeNum();
     dv_t* dv = (dv_t*)malloc(sizeof(dv_t) * (nbrNum + 1));
     for (int i = 0; i <= nbrNum; i++) {
-        dv[i].nodeID = i< nbrNum ? nbrArr[i] : myNodeID;
+        dv[i].nodeID = i < nbrNum ? nbrArr[i] : myNodeID;
         dv[i].dvEntry = (dv_entry_t*)malloc(sizeof(dv_entry_t) * (nodeNum));
         for (int j = 0; j < nodeNum; j++) {
             int src_nodeID = dv[i].nodeID;
             int dest_nodeID = nodeArr[j];
             dv[i].dvEntry[j].nodeID = dest_nodeID;
-            dv[i].dvEntry[j].cost = src_nodeID == dest_nodeID ? 0 : topology_getCost(src_nodeID, dest_nodeID);
+            dv[i].dvEntry[j].cost = 
+                src_nodeID == dest_nodeID ? 0 : topology_getCost(src_nodeID, dest_nodeID);
         }
     }
     return dv;
@@ -75,11 +76,12 @@ unsigned int dvtable_getcost(dv_t* dvtable, int fromNodeID, int toNodeID)
 
 void dvtable_print(dv_t* dvtable)
 {
-    printf("DISTANCE VECTOR TABLE PRINT:\n");
+    printf("--------DISTANCE VECTOR TABLE--------\n");
     for (int i = 0; i <= topology_getNbrNum(); i++) {
         printf("SRC[%d]: ", dvtable[i].nodeID);
         for (int j = 0; j < topology_getNodeNum(); j++)
-            printf("[DEST: %d | COST: %d] ", dvtable[i].dvEntry[j].nodeID, dvtable[i].dvEntry[j].cost);
+            printf("[DEST: %d |COST: %d] ", dvtable[i].dvEntry[j].nodeID, dvtable[i].dvEntry[j].cost);
         printf("\n");
     }
+    printf("-------------------------------------\n");
 }
