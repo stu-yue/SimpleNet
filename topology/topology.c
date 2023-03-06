@@ -18,21 +18,21 @@
 
 // 拓扑节点与IP对应关系
 const char* TOPO_HOST_IP[TOPO_HOST_NUM][2] = { 
-        {"netlab_1", "114.212.190.185"}, 
-        {"netlab_2", "114.212.190.186"},
-        {"netlab_3", "114.212.190.187"},
-        {"netlab_4", "114.212.190.188"},
+        {"netlab_1", "192.168.163.201"}, 
+        {"netlab_2", "192.168.163.202"},
+        {"netlab_3", "192.168.163.203"},
+        {"netlab_4", "192.168.163.204"},
     };
-int head[MAX_NODE_NUM], nodeNum, edgeCnt = 0;
+int head[MAX_NODE_NUM], node_num, edge_cnt = 0;
 topo_edge_t edges[MAX_NODE_NUM * MAX_NODE_NUM];
 
 
 void add(int from, int to, int cost)
 {
-    edges[++edgeCnt].cost = cost;
-    edges[edgeCnt].to = to;
-    edges[edgeCnt].next = head[from];
-    head[from] = edgeCnt;
+    edges[++edge_cnt].cost = cost;
+    edges[edge_cnt].to = to;
+    edges[edge_cnt].next = head[from];
+    head[from] = edge_cnt;
 }
 
 
@@ -73,9 +73,9 @@ int topology_parseTopoDat()
     fclose(fp);
 
     for (int i = 0; i < MAX_NODE_NUM; i++) {
-        if (head[i] > 0) nodeNum++;
+        if (head[i] > 0) node_num++;
     }
-    return nodeNum;
+    return node_num;
 }
 
 
@@ -118,7 +118,6 @@ int topology_getNodeIDfromIP(struct in_addr* addr)
 
 int topology_getMyNodeID()
 {
-    return 1;
     char hostname[256];
     if (gethostname(hostname, 256) != -1) {
         return topology_getNodeIDfromName(hostname);
@@ -147,7 +146,7 @@ int topology_getNbrNum()
 
 int topology_getNodeNum()
 {
-    return nodeNum;
+    return node_num;
 }
 
 

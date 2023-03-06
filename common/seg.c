@@ -26,19 +26,20 @@ int sip_sendseg(int sip_conn, int dest_nodeID, seg_t* segPtr)
 	sendseg.seg = *segPtr;
 
 	if (send(sip_conn, BEGIN_SIGN, 2, 0) <= 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [STCP] CAN'T [SEND] [BEGIN]\n");
+		printf("SIP_CONN[%d] ERROR: [STCP] CAN'T [SEND] [BEGIN]\n", sip_conn);
 		return -1;
 	}
 	if (send(sip_conn, &sendseg, sizeof(sendseg_arg_t), 0) <= 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [STCP] CAN'T [SEND] [SENDSEG]\n");
+		printf("SIP_CONN[%d] ERROR: [STCP] CAN'T [SEND] [SENDSEG]\n", sip_conn);
 		return -1;
 	}
 	if (send(sip_conn, END_SIGN, 2, 0) <= 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [STCP] CAN'T [SEND] [END]\n");
+		printf("SIP_CONN[%d] ERROR: [STCP] CAN'T [SEND] [END]\n", sip_conn);
 		return -1;
 	}
-	printf("SEG[%s] [SIP_CONN] SEND: %d BYTES [PORT: %d | SEQ: %3d]\n", 
-		SEG_TYPE[segPtr->header.type], segPtr->header.length, segPtr->header.src_port, segPtr->header.seq_num);
+	printf("SEG[%s] SIP_CONN[%d] SEND: %d BYTES [PORT: %d | SEQ: %3d]\n", 
+		SEG_TYPE[segPtr->header.type], sip_conn, 
+		segPtr->header.length, segPtr->header.src_port, segPtr->header.seq_num);
 	return 1;
 }
 
@@ -46,44 +47,41 @@ int sip_sendseg(int sip_conn, int dest_nodeID, seg_t* segPtr)
 int sip_recvseg(int sip_conn, int* src_nodeID, seg_t* segPtr)
 {
 	sendseg_arg_t sendseg;
-	int n, state;
-	char sign[3] = {0, 0, 0}, ch;
+	int n;
+	char sign[3] = {0, 0, 0};
 
 	// 确保以!&开始
-	state = 0;
-	while ((n = recv(sip_conn, &ch, 1, 0)) == 1) {
-		switch (state){
-			case 0: state = (ch == '!' ? 1 : 0);
-				break;
-			case 1: state = (ch == '&' ? 2 : 0);
-				break; 
-		}
-		if (state == 2) break;
+	while ((n = recv(sip_conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, BEGIN_SIGN) == 0) 
+			break;
 	}
+
 	if (n == 0)
 		return 0;
 	if (n < 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [STCP] CAN'T [RECV] [BEGIN]\n");
+		printf("SIP_CONN[%d] ERROR: [STCP] CAN'T [RECV] [BEGIN]\n", sip_conn);
 		return -1;
 	}
 	// 接收sendseg
 	if ((n = recv(sip_conn, &sendseg, sizeof(sendseg_arg_t), 0)) <= 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [STCP] CAN'T [RECV] [SENDSEG]\n");
+		printf("SIP_CONN[%d] ERROR: [STCP] CAN'T [RECV] [SENDSEG]\n", sip_conn);
 		return -1;
 	}
 	// 确保以!#结尾
-	if ((n = recv(sip_conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_SIGN) != 0)
-			return 0;
-	} else if (n <= 0) {
-		printf("CONNECTION[SIP_CONN] ERROR: [STCP] CAN'T [RECV] [END]\n");
+	while ((n = recv(sip_conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, END_SIGN) == 0) 
+			break;
+	}
+	
+	if (n <= 0) {
+		printf("SIP_CONN[%d] ERROR: [STCP] CAN'T [RECV] [END]\n", sip_conn);
 		return -1;
 	}
 	// 提取segment和nodeID
 	memcpy(src_nodeID, &sendseg.nodeID, sizeof(int));
 	memcpy(segPtr, &sendseg.seg, sizeof(seg_t));
 	// 丢包和校验
-	if (seglost(segPtr) || checkchecksum(segPtr) == -1) {
+	if (seglost(segPtr, sip_conn) || checkchecksum(segPtr) == -1) {
 		return 0;
 	} else {
 		return 1;
@@ -94,44 +92,42 @@ int sip_recvseg(int sip_conn, int* src_nodeID, seg_t* segPtr)
 int getsegToSend(int stcp_conn, int* dest_nodeID, seg_t* segPtr)
 {
 	sendseg_arg_t sendseg;
-    int n, state;
-	char sign[3] = {0, 0, 0}, ch;
+    int n;
+	char sign[3] = {0, 0, 0};
 
 	// 确保以!&开始
-	state = 0;
-	while ((n = recv(stcp_conn, &ch, 1, 0)) == 1) {
-		switch (state){
-			case 0: state = (ch == '!' ? 1 : 0);
-				break;
-			case 1: state = (ch == '&' ? 2 : 0);
-				break; 
-		}
-		if (state == 2) break;
+	while ((n = recv(stcp_conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, BEGIN_SIGN) == 0) 
+			break;
 	}
+
 	if (n == 0)
 		return 0;
 	if (n < 0) {
-		printf("CONNECTION[STCP_CONN] ERROR: [SIP] CAN'T [RECV] [BEGIN]\n");
+		printf("STCP_CONN[%d] ERROR: [SIP] CAN'T [RECV] [BEGIN]\n", stcp_conn);
 		return -1;
 	}
 	// 接收seg_t
 	if ((n = recv(stcp_conn, &sendseg, sizeof(sendseg_arg_t), 0)) <= 0) {
-		printf("CONNECTION[STCP_CONN] ERROR: [SIP] CAN'T [RECV] [SENDSEG]\n");
+		printf("STCP_CONN[%d] ERROR: [SIP] CAN'T [RECV] [SENDSEG]\n", stcp_conn);
 		return -1;
 	}
 	// 确保以!#结尾
-	if ((n = recv(stcp_conn, &sign, 2, 0)) == 2) {
-		if (strcmp(sign, END_SIGN) != 0)
-			return 0;
-	} else if (n <= 0) {
-		printf("CONNECTION[STCP_CONN] ERROR: [SIP] CAN'T [RECV] [END]\n");
+	while ((n = recv(stcp_conn, &sign, 2, 0)) == 2) {
+		if (strcmp(sign, END_SIGN) == 0) 
+			break;
+	}
+	
+	if (n <= 0) {
+		printf("STCP_CONN[%d] ERROR: [SIP] CAN'T [RECV] [END]\n", stcp_conn);
 		return -1;
 	}
 	// 提取segment和nodeID
 	memcpy(dest_nodeID, &sendseg.nodeID, sizeof(int));
 	memcpy(segPtr, &sendseg.seg, sizeof(seg_t));
-	printf("SEG[%s] [STCP_CONN] RECV: %d BYTES [PORT: %d | SEQ: %3d]\n", 
-		SEG_TYPE[segPtr->header.type], segPtr->header.length, segPtr->header.src_port, segPtr->header.seq_num);
+	printf("SEG[%s] STCP_CONN[%d] RECV: %d BYTES [PORT: %d | SEQ: %3d]\n", 
+		SEG_TYPE[segPtr->header.type], stcp_conn, 
+		segPtr->header.length, segPtr->header.src_port, segPtr->header.seq_num);
 	return 1;
 }
 
@@ -144,24 +140,25 @@ int forwardsegToSTCP(int stcp_conn, int src_nodeID, seg_t* segPtr)
 	sendseg.seg = *segPtr;
 
 	if (send(stcp_conn, BEGIN_SIGN, 2, 0) <= 0) {
-		printf("CONNECTION[STCP_CONN] ERROR: [SIP] CAN'T [SEND] [BEGIN]\n");
+		printf("STCP_CONN[%d] ERROR: [SIP] CAN'T [SEND] [BEGIN]\n", stcp_conn);
 		return -1;
 	}
 	if (send(stcp_conn, &sendseg, sizeof(sendseg_arg_t), 0) <= 0) {
-		printf("CONNECTION[STCP_CONN] ERROR: [SIP] CAN'T [SEND] [SENDSEG]\n");
+		printf("STCP_CONN[%d] ERROR: [SIP] CAN'T [SEND] [SENDSEG]\n", stcp_conn);
 		return -1;
 	}
 	if (send(stcp_conn, END_SIGN, 2, 0) <= 0) {
-		printf("CONNECTION[STCP_CONN] ERROR: [SIP] CAN'T [SEND] [END]\n");
+		printf("STCP_CONN[%d] ERROR: [SIP] CAN'T [SEND] [END]\n", stcp_conn);
 		return -1;
 	}
-	printf("SEG[%s] [STCP_CONN] SEND: %d BYTES [PORT: %d | SEQ: %3d]\n", 
-		SEG_TYPE[segPtr->header.type], segPtr->header.length, segPtr->header.src_port, segPtr->header.seq_num);
+	printf("SEG[%s] STCP_CONN[%d] SEND: %d BYTES [PORT: %d | SEQ: %3d]\n", 
+		SEG_TYPE[segPtr->header.type], stcp_conn, 
+		segPtr->header.length, segPtr->header.src_port, segPtr->header.seq_num);
 	return 1;
 }
 
 
-int seglost(seg_t* segPtr) 
+int seglost(seg_t* segPtr, int sip_conn) 
 {
 	int random = rand() % 100;
 	if(random < PKT_LOSS_RATE * 100) {
@@ -185,8 +182,9 @@ int seglost(seg_t* segPtr)
 			return 0;
 		}
 	}
-	printf("SEG[%s] [SIP_CONN] RECV: %d BYTES [PORT: %d | SEQ: %3d] ", 
-		SEG_TYPE[segPtr->header.type], segPtr->header.length, segPtr->header.src_port, segPtr->header.seq_num);
+	printf("SEG[%s] SIP_CONN[%d] RECV: %d BYTES [PORT: %d | SEQ: %3d] ", 
+		SEG_TYPE[segPtr->header.type], sip_conn, 
+		segPtr->header.length, segPtr->header.src_port, segPtr->header.seq_num);
 	return 0;
 }
 

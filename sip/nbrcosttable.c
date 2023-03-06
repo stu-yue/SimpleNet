@@ -54,7 +54,9 @@ unsigned int nbrcosttable_getcost(nbr_cost_entry_t* nct, int nodeID)
 void nbrcosttable_print(nbr_cost_entry_t* nct)
 {
     int nbrNum = topology_getNbrNum();
+    printf("---------NEIGHBOR COST TABLE---------\n");
     for (int i = 0; i < nbrNum; i++) {
         printf("NBR_COST[%d]: [NODEID: %d | COST: %d]\n", i, nct[i].nodeID, nct[i].cost);
     }
+    printf("-------------------------------------\n");
 }
