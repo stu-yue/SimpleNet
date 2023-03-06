@@ -13,8 +13,8 @@
 //这是STCP可以支持的最大连接数. 你的TCB表应包含MAX_TRANSPORT_CONNECTIONS个条目.
 #define MAX_TRANSPORT_CONNECTIONS 10
 //最大段长度: 1500 - sizeof(seg header) - sizeof(ip header)
-// #define MAX_SEG_LEN  1464
-#define MAX_SEG_LEN 50
+#define MAX_SEG_LEN  1464
+// #define MAX_SEG_LEN 50
 //数据包丢失率为10%
 #define PKT_LOSS_RATE 0.1
 //SYN_TIMEOUT值, 单位为纳秒
